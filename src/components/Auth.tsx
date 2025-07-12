@@ -3,19 +3,30 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
+import { Button } from '@/components/ui/button'
+import { useRouter } from 'next/navigation'
 
 export default function Auth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [message, setMessage] = useState('')
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
+      
+      // Redirect to dashboard if already signed in
+      if (session?.user) {
+        router.push('/dashboard')
+      }
     })
 
     // Listen for auth changes
@@ -23,94 +34,111 @@ export default function Auth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      if (session?.user) {
+        router.push('/dashboard')
+      }
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [supabase.auth, router])
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    if (error) console.log('Error:', error.message)
-    else console.log('Sign up successful!')
-  }
+    setAuthLoading(true)
+    setMessage('')
 
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) console.log('Error:', error.message)
-    else console.log('Sign in successful!')
-  }
-
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) console.log('Error:', error.message)
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        })
+        if (error) {
+          setMessage(error.message)
+        } else {
+          setMessage('Check your email for the confirmation link!')
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        if (error) {
+          setMessage(error.message)
+        }
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setAuthLoading(false)
+    }
   }
 
   if (loading) {
-    return <div>Loading...</div>
-  }
-
-  if (user) {
-    return (
-      <div className="p-4 border rounded-lg">
-        <h2 className="text-lg font-semibold mb-2">Welcome, {user.email}!</h2>
-        <button
-          onClick={handleSignOut}
-          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-        >
-          Sign Out
-        </button>
-      </div>
-    )
+    return <div className="text-center">Loading...</div>
   }
 
   return (
-    <div className="p-4 border rounded-lg">
-      <h2 className="text-lg font-semibold mb-4">Authentication</h2>
-      <form onSubmit={handleSignIn} className="space-y-4">
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-semibold text-gray-900">
+          {isSignUp ? 'Create your account' : 'Sign in to your account'}
+        </h2>
+      </div>
+
+      <form onSubmit={handleAuth} className="space-y-4">
         <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            Email address
+          </label>
           <input
+            id="email"
             type="email"
-            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             required
           />
         </div>
+
         <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            Password
+          </label>
           <input
+            id="password"
             type="password"
-            placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             required
           />
         </div>
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={handleSignUp}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
-            Sign Up
-          </button>
-        </div>
+
+        {message && (
+          <div className={`text-sm ${message.includes('error') ? 'text-red-600' : 'text-green-600'}`}>
+            {message}
+          </div>
+        )}
+
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={authLoading}
+        >
+          {authLoading ? 'Loading...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+        </Button>
       </form>
+
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={() => setIsSignUp(!isSignUp)}
+          className="text-sm text-blue-600 hover:text-blue-500"
+        >
+          {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+        </button>
+      </div>
     </div>
   )
 } 
