@@ -1,4 +1,5 @@
 import Auth from "@/components/Auth"
+import Link from "next/link"
 
 export default function SignInPage() {
   return (
@@ -16,12 +17,12 @@ export default function SignInPage() {
         </div>
         
         <div className="text-center">
-          <a 
+          <Link 
             href="/" 
             className="text-sm text-blue-600 hover:text-blue-500"
           >
             ← Back to home
-          </a>
+          </Link>
         </div>
       </div>
     </div>

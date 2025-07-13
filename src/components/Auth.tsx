@@ -2,17 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 
 export default function Auth() {
-  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [authLoading, setAuthLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isResetPassword, setIsResetPassword] = useState(false)
   const [message, setMessage] = useState('')
   const supabase = createClient()
   const router = useRouter()
@@ -20,7 +19,6 @@ export default function Auth() {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
       setLoading(false)
       
       // Redirect to dashboard if already signed in
@@ -33,7 +31,6 @@ export default function Auth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
       if (session?.user) {
         router.push('/dashboard')
       }
@@ -48,7 +45,16 @@ export default function Auth() {
     setMessage('')
 
     try {
-      if (isSignUp) {
+      if (isResetPassword) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        })
+        if (error) {
+          setMessage(error.message)
+        } else {
+          setMessage('Check your email for the password reset link!')
+        }
+      } else if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -82,7 +88,12 @@ export default function Auth() {
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-semibold text-gray-900">
-          {isSignUp ? 'Create your account' : 'Sign in to your account'}
+          {isResetPassword 
+            ? 'Reset your password' 
+            : isSignUp 
+              ? 'Create your account' 
+              : 'Sign in to your account'
+          }
         </h2>
       </div>
 
@@ -101,19 +112,21 @@ export default function Auth() {
           />
         </div>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            required
-          />
-        </div>
+        {!isResetPassword && (
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+        )}
 
         {message && (
           <div className={`text-sm ${message.includes('error') ? 'text-red-600' : 'text-green-600'}`}>
@@ -126,18 +139,44 @@ export default function Auth() {
           className="w-full"
           disabled={authLoading}
         >
-          {authLoading ? 'Loading...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+          {authLoading 
+            ? 'Loading...' 
+            : isResetPassword 
+              ? 'Send Reset Link' 
+              : isSignUp 
+                ? 'Sign Up' 
+                : 'Sign In'
+          }
         </Button>
       </form>
 
-      <div className="text-center">
-        <button
-          type="button"
-          onClick={() => setIsSignUp(!isSignUp)}
-          className="text-sm text-blue-600 hover:text-blue-500"
-        >
-          {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-        </button>
+      <div className="text-center space-y-2">
+        {!isResetPassword ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-blue-600 hover:text-blue-500 block"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsResetPassword(true)}
+              className="text-sm text-blue-600 hover:text-blue-500 block"
+            >
+              Forgot your password?
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsResetPassword(false)}
+            className="text-sm text-blue-600 hover:text-blue-500"
+          >
+            Back to sign in
+          </button>
+        )}
       </div>
     </div>
   )
